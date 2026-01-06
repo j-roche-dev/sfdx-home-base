@@ -14,13 +14,16 @@
     "prettier:verify": "prettier --check \"**/*.{cls,cmp,component,css,html,js,json,md,page,trigger,xml,yaml,yml}\"",
     "prepare": "husky || true",
     "precommit": "lint-staged",
-    "discover": "./scripts/discovery/retrieve-metadata.sh",
+    "retrieve": "./scripts/discovery/retrieve-all-metadata.sh",
+    "query": "./scripts/discovery/query-metadata.sh",
+    "analyze": "./scripts/discovery/analyze-metadata.sh",
+    "context:generate": "./scripts/discovery/generate-claude-context.sh",
+    "discover:full": "./scripts/discovery/full-discovery.sh",
     "discover:objects": "./scripts/discovery/inventory-objects.sh",
     "discover:automation": "./scripts/discovery/inventory-automation.sh",
     "discover:integrations": "./scripts/discovery/inventory-integrations.sh",
     "discover:security": "./scripts/discovery/inventory-security.sh",
-    "discover:report": "./scripts/discovery/generate-report.sh",
-    "discover:all": "npm run discover -- $npm_config_org && npm run discover:objects -- $npm_config_org && npm run discover:automation -- $npm_config_org && npm run discover:integrations -- $npm_config_org && npm run discover:security -- $npm_config_org && npm run discover:report"
+    "discover:report": "./scripts/discovery/generate-report.sh"
   },
   "devDependencies": {
     "@lwc/eslint-plugin-lwc": "^3.1.0",

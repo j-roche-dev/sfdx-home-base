@@ -53,7 +53,21 @@ docs/discovery/metadata-inventory/objects/
 docs/discovery/metadata-inventory/automation/
 docs/discovery/metadata-inventory/integrations/
 docs/discovery/metadata-inventory/security/
-docs/discovery/analysis/discovery-report.md
+docs/discovery/analysis/*.json
+docs/discovery/analysis/*.md
+
+# Retrieved metadata (regeneratable from org)
+# Uncomment the lines below if you don't want to track retrieved source
+# force-app/main/default/classes/
+# force-app/main/default/triggers/
+# force-app/main/default/flows/
+# force-app/main/default/lwc/
+# force-app/main/default/aura/
+# force-app/main/default/objects/
+
+# Generated manifest
+manifest/full-package.xml
 
 # Keep .gitkeep files to preserve folder structure
 !docs/discovery/**/.gitkeep
+!force-app/**/.gitkeep
