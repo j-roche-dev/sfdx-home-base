@@ -1,0 +1,3 @@
+# This directory stores JSON outputs from discovery scripts
+# Files in this directory are gitignored (regeneratable)
+# Run: npm run discover:all [org-alias] to populate
