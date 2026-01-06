@@ -64,12 +64,35 @@ run_query() {
     local description="$1"
     local query="$2"
     local output_file="$3"
+    local use_tooling="${4:-false}"  # Optional: use Tooling API
 
     echo -n "  $description... "
-    if sf data query --query "$query" --target-org "$ORG_ALIAS" --json > "$OUTPUT_DIR/$output_file" 2>/dev/null; then
+
+    local output
+    local exit_code=0
+
+    if [ "$use_tooling" = "true" ]; then
+        output=$(sf data query --query "$query" --target-org "$ORG_ALIAS" --use-tooling-api --json 2>&1) || exit_code=$?
+    else
+        output=$(sf data query --query "$query" --target-org "$ORG_ALIAS" --json 2>&1) || exit_code=$?
+    fi
+
+    if [ $exit_code -eq 0 ]; then
+        echo "$output" > "$OUTPUT_DIR/$output_file"
         echo -e "${GREEN}OK${NC}"
     else
-        echo -e "${YELLOW}SKIPPED${NC} (query may not be supported)"
+        # Categorize the error
+        if echo "$output" | grep -qi "not supported\|invalid sobject\|doesn't support\|no such column\|INVALID_TYPE"; then
+            echo -e "${YELLOW}SKIPPED${NC} (object/field not available)"
+        elif echo "$output" | grep -qi "INSUFFICIENT_ACCESS\|not authorized\|access denied"; then
+            echo -e "${YELLOW}SKIPPED${NC} (insufficient permissions)"
+        elif echo "$output" | grep -qi "MALFORMED_QUERY\|unexpected token"; then
+            echo -e "${YELLOW}SKIPPED${NC} (query syntax issue)"
+        else
+            echo -e "${YELLOW}SKIPPED${NC} (query failed)"
+        fi
+        # Save empty result structure so downstream scripts don't fail
+        echo '{"status":0,"result":{"records":[],"totalSize":0},"warnings":["Query skipped"]}' > "$OUTPUT_DIR/$output_file"
     fi
 }
 
@@ -125,12 +148,13 @@ run_query "Active flows" \
     "flows.json"
 
 # -----------------------------------------------------------------------------
-# 6. Validation Rules
+# 6. Validation Rules (requires Tooling API)
 # -----------------------------------------------------------------------------
 echo "[6/10] Validation Rules"
 run_query "Validation rules" \
-    "SELECT Id, EntityDefinition.QualifiedApiName, ValidationName, Active, Description, ErrorMessage FROM ValidationRule WHERE Active = true ORDER BY EntityDefinition.QualifiedApiName" \
-    "validation-rules.json"
+    "SELECT Id, EntityDefinitionId, ValidationName, Active, Description, ErrorMessage FROM ValidationRule WHERE Active = true" \
+    "validation-rules.json" \
+    "true"
 
 # -----------------------------------------------------------------------------
 # 7. Installed Packages
@@ -193,3 +217,9 @@ echo "     - ./scripts/discovery/inventory-security.sh $ORG_ALIAS"
 echo "  3. Review outputs and update docs/ with findings"
 echo "  4. Update CLAUDE.md with key context"
 echo "=========================================="
+echo ""
+echo -e "${YELLOW}Note:${NC} Some queries may be skipped due to:"
+echo "  - Object/field not available in your org edition"
+echo "  - Insufficient user permissions"
+echo "  - Tooling API requirements (ValidationRule, etc.)"
+echo "  Skipped queries produce empty JSON files that won't break reports."

@@ -21,6 +21,23 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
+# Check if jq is available
+HAS_JQ=false
+if command -v jq &> /dev/null; then
+    HAS_JQ=true
+fi
+
+# Fallback: Count records in JSON result
+count_records() {
+    local file="$1"
+    if [ "$HAS_JQ" = true ]; then
+        jq '.result.records | length' "$file" 2>/dev/null || echo "0"
+    else
+        # Count "Id" occurrences in records array as proxy
+        grep -c '"Id"\s*:' "$file" 2>/dev/null || echo "0"
+    fi
+}
+
 if [ -z "$ORG_ALIAS" ]; then
     echo -e "${RED}Error: Org alias is required${NC}"
     echo ""
@@ -46,7 +63,7 @@ run_query() {
 
     echo -n "  $description... "
     if sf data query --query "$query" --target-org "$ORG_ALIAS" --json > "$OUTPUT_DIR/$output_file" 2>/dev/null; then
-        COUNT=$(jq '.result.records | length' "$OUTPUT_DIR/$output_file" 2>/dev/null || echo "0")
+        COUNT=$(count_records "$OUTPUT_DIR/$output_file")
         echo -e "${GREEN}OK${NC} ($COUNT found)"
     else
         echo -e "${YELLOW}SKIPPED${NC}"
@@ -141,7 +158,7 @@ echo "Summary:"
 for file in "$OUTPUT_DIR"/*.json; do
     if [ -f "$file" ]; then
         name=$(basename "$file" .json)
-        count=$(jq '.result.records | length' "$file" 2>/dev/null || echo "N/A")
+        count=$(count_records "$file")
         echo "  $name: $count"
     fi
 done

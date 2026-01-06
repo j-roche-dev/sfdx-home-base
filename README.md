@@ -176,8 +176,11 @@ npm run discover:report
 - Authenticated access to target Salesforce org(s)
 
 ### Installing jq (optional)
+
+jq enhances report generation with richer data extraction. Without jq, scripts will still work but produce simplified output.
+
 ```bash
-# Ubuntu/Debian
+# Ubuntu/Debian (recommended - installs system-wide)
 sudo apt install jq
 
 # macOS
@@ -185,6 +188,13 @@ brew install jq
 
 # Windows (with chocolatey)
 choco install jq
+```
+
+**Important:** Install jq system-wide (not in `~/.local/bin`) for best compatibility with npm scripts. If you must use a local installation, ensure your PATH is exported:
+
+```bash
+# Add to ~/.bashrc or ~/.zshrc if jq is installed locally
+export PATH="$HOME/.local/bin:$PATH"
 ```
 
 ## Workflow

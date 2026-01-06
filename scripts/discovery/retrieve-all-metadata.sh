@@ -56,8 +56,14 @@ REPORT_TYPES="Report,Dashboard,ReportType"
 # Group 9: Email & Documents
 EMAIL_TYPES="EmailTemplate,Letterhead,Document,StaticResource"
 
-# Group 10: Other common types
-OTHER_TYPES="CustomPermission,Queue,Group,Role,GlobalValueSet,StandardValueSet,QuickAction,CompactLayout,RecordType"
+# Group 10: Permissions & Groups (split from Other to avoid 10k limit)
+PERMISSION_GROUP_TYPES="CustomPermission,Queue,Group,Role"
+
+# Group 11: Value Sets
+VALUESET_TYPES="GlobalValueSet,StandardValueSet"
+
+# Group 12: UI Components
+UI_COMPONENT_TYPES="QuickAction,CompactLayout,RecordType"
 
 # =============================================================================
 # Functions
@@ -178,6 +184,11 @@ retrieve_group() {
         elif echo "$output" | grep -qi "Missing metadata type definition"; then
             # Some types don't exist in all orgs - not a fatal error
             warning "SKIPPED (type not available)"
+            return 0
+        elif echo "$output" | grep -qi "exceeds the limit\|too many\|10,*000\|limit exceeded"; then
+            # 10k file limit exceeded - warn but continue
+            warning "PARTIAL (exceeds 10k file limit - some types skipped)"
+            echo "      Tip: Large orgs may need individual metadata type retrieval" >> "$log_file"
             return 0
         else
             error "FAILED (see $log_file)"
@@ -481,7 +492,9 @@ retrieve_group "Apps" "$APP_TYPES" || ((FAILURES++))
 retrieve_group "Integration" "$INTEGRATION_TYPES" || ((FAILURES++))
 retrieve_group "Reports" "$REPORT_TYPES" || ((FAILURES++))
 retrieve_group "Email" "$EMAIL_TYPES" || ((FAILURES++))
-retrieve_group "Other" "$OTHER_TYPES" || ((FAILURES++))
+retrieve_group "PermissionsGroups" "$PERMISSION_GROUP_TYPES" || ((FAILURES++))
+retrieve_group "ValueSets" "$VALUESET_TYPES" || ((FAILURES++))
+retrieve_group "UIComponents" "$UI_COMPONENT_TYPES" || ((FAILURES++))
 
 # Print summary
 print_summary

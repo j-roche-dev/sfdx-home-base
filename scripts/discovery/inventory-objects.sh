@@ -22,6 +22,41 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
+# Check if jq is available
+HAS_JQ=false
+if command -v jq &> /dev/null; then
+    HAS_JQ=true
+fi
+
+# Fallback: Extract array elements from JSON
+extract_json_array() {
+    local json="$1"
+    local key="$2"
+    echo "$json" | grep -oP "\"$key\"\s*:\s*\[[^\]]*\]" | grep -oP '"[^"]+__c"' | tr -d '"' | sort -u
+}
+
+# Fallback: Count array length in JSON file
+count_json_array() {
+    local file="$1"
+    local key="$2"
+    # Count occurrences of objects in the array - look for "name" fields in fields array
+    grep -oP "\"$key\"\s*:" "$file" 2>/dev/null | wc -l || echo "?"
+}
+
+# Fallback: Extract string value from JSON
+extract_json_string() {
+    local json="$1"
+    local key="$2"
+    echo "$json" | grep -oP "\"$key\"\s*:\s*\"[^\"]*\"" | head -1 | sed 's/.*"\([^"]*\)"$/\1/'
+}
+
+# Fallback: Extract boolean value from JSON
+extract_json_bool() {
+    local json="$1"
+    local key="$2"
+    echo "$json" | grep -oP "\"$key\"\s*:\s*(true|false)" | head -1 | grep -oP '(true|false)'
+}
+
 if [ -z "$ORG_ALIAS" ]; then
     echo -e "${RED}Error: Org alias is required${NC}"
     echo ""
@@ -55,7 +90,20 @@ if [ -n "$OBJECT_NAME" ]; then
         echo ""
         echo "Summary for $OBJECT_NAME:"
         echo "------------------------"
-        jq -r '.result | "  Label: \(.label)\n  API Name: \(.name)\n  Custom: \(.custom)\n  Field Count: \(.fields | length)\n  Record Types: \(.recordTypeInfos | length)"' "$OUTPUT_DIR/${OBJECT_NAME}.json" 2>/dev/null || echo "  (Unable to parse)"
+        if [ "$HAS_JQ" = true ]; then
+            jq -r '.result | "  Label: \(.label)\n  API Name: \(.name)\n  Custom: \(.custom)\n  Field Count: \(.fields | length)\n  Record Types: \(.recordTypeInfos | length)"' "$OUTPUT_DIR/${OBJECT_NAME}.json" 2>/dev/null || echo "  (Unable to parse)"
+        else
+            # Fallback without jq
+            JSON_CONTENT=$(cat "$OUTPUT_DIR/${OBJECT_NAME}.json")
+            LABEL=$(extract_json_string "$JSON_CONTENT" "label")
+            NAME=$(extract_json_string "$JSON_CONTENT" "name")
+            CUSTOM=$(extract_json_bool "$JSON_CONTENT" "custom")
+            FIELD_COUNT=$(grep -c '"name"\s*:' "$OUTPUT_DIR/${OBJECT_NAME}.json" 2>/dev/null || echo "?")
+            echo "  Label: ${LABEL:-Unknown}"
+            echo "  API Name: ${NAME:-Unknown}"
+            echo "  Custom: ${CUSTOM:-Unknown}"
+            echo "  Field Count: ~$FIELD_COUNT (approximate)"
+        fi
     else
         echo -e "${RED}FAILED${NC}"
         echo "  Object may not exist or you may not have access"
@@ -71,8 +119,13 @@ else
         exit 1
     fi
 
-    OBJECTS=$(echo "$OBJECTS_JSON" | jq -r '.result[]' 2>/dev/null)
-    TOTAL=$(echo "$OBJECTS" | wc -l)
+    if [ "$HAS_JQ" = true ]; then
+        OBJECTS=$(echo "$OBJECTS_JSON" | jq -r '.result[]' 2>/dev/null)
+    else
+        # Fallback: Extract object names from JSON array
+        OBJECTS=$(echo "$OBJECTS_JSON" | grep -oP '"[^"]+__c"' | tr -d '"' | sort -u)
+    fi
+    TOTAL=$(echo "$OBJECTS" | grep -c . || echo "0")
 
     echo "Found $TOTAL custom objects"
     echo ""
@@ -83,7 +136,12 @@ else
         echo -n "[$COUNT/$TOTAL] $OBJ... "
 
         if sf sobject describe --sobject "$OBJ" --target-org "$ORG_ALIAS" --json > "$OUTPUT_DIR/${OBJ}.json" 2>/dev/null; then
-            FIELD_COUNT=$(jq '.result.fields | length' "$OUTPUT_DIR/${OBJ}.json" 2>/dev/null || echo "?")
+            if [ "$HAS_JQ" = true ]; then
+                FIELD_COUNT=$(jq '.result.fields | length' "$OUTPUT_DIR/${OBJ}.json" 2>/dev/null || echo "?")
+            else
+                # Fallback: Count "name" occurrences in fields array (approximate)
+                FIELD_COUNT=$(grep -c '"name"\s*:' "$OUTPUT_DIR/${OBJ}.json" 2>/dev/null || echo "?")
+            fi
             echo -e "${GREEN}OK${NC} ($FIELD_COUNT fields)"
         else
             echo -e "${YELLOW}SKIPPED${NC}"

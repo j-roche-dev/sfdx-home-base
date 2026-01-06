@@ -90,6 +90,19 @@ usage() {
     exit 1
 }
 
+# Check if jq is available
+HAS_JQ=false
+if command -v jq &> /dev/null; then
+    HAS_JQ=true
+fi
+
+# Fallback JSON extraction (when jq not available)
+extract_json_string() {
+    local json="$1"
+    local key="$2"
+    echo "$json" | grep -oP "\"$key\":\s*\"[^\"]*\"" | sed 's/.*"\([^"]*\)"$/\1/' | head -1
+}
+
 # =============================================================================
 # Main
 # =============================================================================
@@ -124,8 +137,15 @@ log "Connecting to $ORG_ALIAS..."
 
 if sf org display --target-org "$ORG_ALIAS" > /dev/null 2>&1; then
     ORG_INFO=$(sf org display --target-org "$ORG_ALIAS" --json 2>/dev/null)
-    USERNAME=$(echo "$ORG_INFO" | jq -r '.result.username // "Unknown"')
-    INSTANCE=$(echo "$ORG_INFO" | jq -r '.result.instanceUrl // "Unknown"')
+    if [ "$HAS_JQ" = true ]; then
+        USERNAME=$(echo "$ORG_INFO" | jq -r '.result.username // "Unknown"')
+        INSTANCE=$(echo "$ORG_INFO" | jq -r '.result.instanceUrl // "Unknown"')
+    else
+        USERNAME=$(extract_json_string "$ORG_INFO" "username")
+        INSTANCE=$(extract_json_string "$ORG_INFO" "instanceUrl")
+        [ -z "$USERNAME" ] && USERNAME="Unknown"
+        [ -z "$INSTANCE" ] && INSTANCE="Unknown"
+    fi
     success "Connected successfully!"
     echo "  Username: $USERNAME"
     echo "  Instance: $INSTANCE"
